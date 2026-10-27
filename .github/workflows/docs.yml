@@ -1,0 +1,59 @@
+name: docs
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Least privilege for the official Pages deployment actions.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Single Pages deployment at a time; never cancel a live deploy.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: macos-26
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build DocC site
+        run: |
+          swift package --allow-writing-to-directory ./docs \
+            generate-documentation --target InferenceKit \
+            --output-path ./docs \
+            --transform-for-static-hosting \
+            --hosting-base-path "${{ github.event.repository.name }}"
+          # Serve as-is: no Jekyll processing on Pages.
+          touch ./docs/.nojekyll
+          # swift-docc-render has no route for the bare root URL; serve a
+          # redirect stub to the module landing page
+          # documentation/inferencekit rather than documentation/.
+          cat > ./docs/index.html << 'EOF'
+          <!doctype html><meta charset="utf-8">
+          <script>location.replace(document.baseURI.slice(0, document.baseURI.lastIndexOf("/")) + "/documentation/inferencekit")</script>
+          <meta http-equiv="refresh" content="0;url=documentation/inferencekit">
+          <link rel="canonical" href="documentation/inferencekit">
+          EOF
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./docs
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

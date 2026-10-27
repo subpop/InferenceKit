@@ -1,0 +1,17 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    # macOS runner: MLX and Foundation Models are Apple-platform only.
+    runs-on: macos-26
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Run tests
+        run: swift test
